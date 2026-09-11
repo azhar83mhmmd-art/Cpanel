@@ -1,0 +1,24 @@
+{
+  "name": "kairoo-panel-manager",
+  "version": "1.0.0",
+  "description": "cPanel Kairoo Store - Pterodactyl Panel Manager (reseller, admin_panel, admin_web)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "vercel-build": "echo Kairoo Store Vercel build ready",
+    "seed": "node seed.js",
+    "migrate": "node scripts/migrate-json-to-supabase.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "bcryptjs": "^2.4.3",
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "uuid": "^9.0.1",
+    "express-rate-limit": "^7.2.0",
+    "@supabase/supabase-js": "^2.57.4",
+    "express-async-errors": "^3.1.1"
+  }
+}
