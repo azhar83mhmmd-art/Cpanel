@@ -1,0 +1,7 @@
+.env
+.env.*
+node_modules
+npm-debug.log*
+*.log
+data/*.json
+README-VERCEL-SUPABASE.md
