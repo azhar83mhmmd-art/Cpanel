@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard — Kairoo Store</title>
+<link rel="stylesheet" href="/css/style.css" />
+<link rel="icon" href="/assets/logo.png" />
+</head>
+<body>
+  <div class="toast-wrap" id="toastWrap"></div>
+
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-ring"><img src="/assets/logo.png" alt="Kairoo Store" /></div>
+        <div>
+          <div class="name">KAIROO STORE</div>
+          <div class="role-tag" id="roleTag">RESELLER</div>
+        </div>
+      </div>
+
+      <div class="nav-link active" data-tab="create"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><circle cx="7" cy="7" r=".6" fill="currentColor" stroke="none"/><circle cx="7" cy="17" r=".6" fill="currentColor" stroke="none"/></svg><span>Buat Panel</span></div>
+      <div class="nav-link" data-tab="riwayat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg><span>Riwayat Panel</span></div>
+      <a class="nav-link" href="/panel-admin" id="adminPanelLink" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="1.8"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="16" cy="12" r="1.8"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="11" cy="18" r="1.8"/></svg><span>Panel Admin</span></a>
+      <a class="nav-link" href="/profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c1.4-3.6 4.4-5.5 7.5-5.5s6.1 1.9 7.5 5.5"/></svg><span>Profil</span></a>
+
+      <div class="nav-spacer"></div>
+      <div class="nav-link logout" id="logoutBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3"/><path d="M15 16l4-4-4-4"/><path d="M19 12H9"/></svg><span>Logout</span></div>
+    </aside>
+
+    <main class="main">
+      <button class="hamburger" id="hamburger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg><span>Menu</span></button>
+      <div class="topbar">
+        <div>
+          <h1>Dashboard</h1>
+          <p id="welcomeText">Selamat datang</p>
+        </div>
+      </div>
+
+      <!-- Statistik -->
+      <div class="grid grid-4" id="statsGrid" style="margin-bottom:20px;">
+        <div class="card stat-card">
+          <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 4.5-9 4.5-9-4.5 9-4.5Z"/><path d="M3 12l9 4.5 9-4.5"/><path d="M3 16.5l9 4.5 9-4.5"/></svg>
+          </div>
+          <div class="label">Total Panel</div>
+          <div class="value" id="statTotal"><div class="skeleton" style="height:26px;width:38px;"></div></div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-icon" style="background:var(--success-glow); color:#5eeab5;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.3 12.4l2.6 2.6 5-5.2"/></svg>
+          </div>
+          <div class="label">Panel Aktif</div>
+          <div class="value" id="statAktif"><div class="skeleton" style="height:26px;width:38px;"></div></div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-icon" style="background:var(--warning-glow); color:#ffc773;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+          </div>
+          <div class="label">Diproses</div>
+          <div class="value" id="statProses"><div class="skeleton" style="height:26px;width:38px;"></div></div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-icon" style="background:var(--danger-glow); color:#ff8a97;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+          </div>
+          <div class="label">Gagal</div>
+          <div class="value" id="statGagal"><div class="skeleton" style="height:26px;width:38px;"></div></div>
+        </div>
+      </div>
+
+      <!-- Quick actions -->
+      <div class="quick-actions">
+        <button class="quick-action-btn" data-tab="create" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><circle cx="7" cy="7" r=".6" fill="currentColor" stroke="none"/><circle cx="7" cy="17" r=".6" fill="currentColor" stroke="none"/></svg>
+          Buat Panel
+        </button>
+        <button class="quick-action-btn" data-tab="riwayat" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+          Riwayat Panel
+        </button>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="create">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><circle cx="7" cy="7" r=".6" fill="currentColor" stroke="none"/><circle cx="7" cy="17" r=".6" fill="currentColor" stroke="none"/></svg>
+          Buat Panel
+        </button>
+        <button class="tab-btn" data-tab="riwayat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+          Riwayat Panel
+        </button>
+      </div>
+
+      <div class="tab-panel active" id="tab-create">
+        <div class="grid" id="createGrid" style="grid-template-columns: 1fr 1fr; gap:18px; align-items:start;">
+          <div class="card">
+            <h3 style="margin:0 0 16px; font-size:15px;">Buat Panel Baru</h3>
+            <form id="createForm" class="form-grid">
+              <div>
+                <label>Nama Panel</label>
+                <input type="text" id="panelName" placeholder="Contoh: server-budi-01" autocomplete="off" required />
+              </div>
+              <div>
+                <label>Pilih RAM</label>
+                <div class="custom-select" id="ramCustomSelect">
+                  <button type="button" class="custom-select-trigger" id="ramTrigger" aria-haspopup="listbox" aria-expanded="false">
+                    <span id="ramTriggerLabel" class="placeholder">-- Pilih RAM --</span>
+                    <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                  </button>
+                  <div class="custom-select-panel" id="ramPanel" role="listbox">
+                    <div class="custom-select-option" data-value="1gb" role="option" tabindex="0">
+                      <span>1 GB</span>
+                      <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+                    </div>
+                    <div class="custom-select-option" data-value="2gb" role="option" tabindex="0">
+                      <span>2 GB</span>
+                      <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+                    </div>
+                    <div class="custom-select-option" data-value="3gb" role="option" tabindex="0">
+                      <span>3 GB</span>
+                      <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+                    </div>
+                    <div class="custom-select-option" data-value="4gb" role="option" tabindex="0">
+                      <span>4 GB</span>
+                      <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+                    </div>
+                    <div class="custom-select-option" data-value="5gb" role="option" tabindex="0">
+                      <span>5 GB</span>
+                      <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+                    </div>
+                    <div class="custom-select-option" data-value="6gb" role="option" tabindex="0">
+                      <span>6 GB</span>
+                      <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+                    </div>
+                    <div class="custom-select-option" data-value="7gb" role="option" tabindex="0">
+                      <span>7 GB</span>
+                      <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+                    </div>
+                    <div class="custom-select-option" data-value="8gb" role="option" tabindex="0">
+                      <span>8 GB</span>
+                      <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+                    </div>
+                    <div class="custom-select-option" data-value="9gb" role="option" tabindex="0">
+                      <span>9 GB</span>
+                      <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+                    </div>
+                    <div class="custom-select-option" data-value="10gb" role="option" tabindex="0">
+                      <span>10 GB</span>
+                      <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+                    </div>
+                    <div class="custom-select-option" data-value="unlimited" role="option" tabindex="0">
+                      <span>Unlimited</span>
+                      <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button type="submit" class="btn" id="createBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><circle cx="7" cy="7" r=".6" fill="currentColor" stroke="none"/><circle cx="7" cy="17" r=".6" fill="currentColor" stroke="none"/></svg>
+                BUAT PANEL
+              </button>
+            </form>
+
+            <div class="error-card" id="createErrorCard" style="display:none;">
+              <div class="ec-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><circle cx="12" cy="16.3" r=".9" fill="currentColor" stroke="none"/></svg>
+                Panel gagal dibuat
+              </div>
+              <p class="ec-msg" id="createErrorMsg"></p>
+              <button type="button" class="btn btn-secondary btn-sm" id="createRetryBtn" style="margin-top:12px;">Coba Lagi</button>
+            </div>
+          </div>
+
+          <div class="card" id="resourcePreviewCard" style="display:none;">
+            <h3 style="margin:0 0 14px; font-size:15px;">Resource Panel</h3>
+            <div class="resource-row"><span>RAM</span><span id="prevRam">-</span></div>
+            <div class="resource-row"><span>CPU</span><span id="prevCpu">-</span></div>
+            <div class="resource-row"><span>Disk</span><span id="prevDisk">-</span></div>
+          </div>
+        </div>
+
+        <div style="margin-top:26px;">
+          <h3 style="font-size:15px; margin:0 0 14px;">Panel Terbaru</h3>
+          <div id="terbaruList">
+            <div class="skeleton" style="height:70px; border-radius:13px; margin-bottom:10px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-riwayat">
+        <div class="card">
+          <div class="riwayat-toolbar">
+            <div class="search-field">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+              <input type="text" id="riwayatSearch" placeholder="Cari nama panel..." autocomplete="off" />
+            </div>
+            <select id="riwayatFilter">
+              <option value="">Semua Status</option>
+              <option value="success">Aktif</option>
+              <option value="processing">Diproses</option>
+              <option value="failed">Gagal</option>
+            </select>
+            <select id="riwayatSort">
+              <option value="terbaru">Terbaru</option>
+              <option value="terlama">Terlama</option>
+            </select>
+          </div>
+
+          <div class="table-wrap desktop-only">
+            <table>
+              <thead>
+                <tr><th>Nama Panel</th><th>RAM</th><th>Status</th><th>Dibuat</th><th>Aksi</th></tr>
+              </thead>
+              <tbody id="riwayatBody">
+                <tr><td colspan="5"><div class="skeleton" style="height:16px;"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="mobile-only" id="riwayatCards">
+            <div class="skeleton" style="height:80px; border-radius:13px; margin-bottom:10px;"></div>
+          </div>
+
+          <div class="empty-state" id="riwayatEmpty" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l3-7h12l3 7"/><path d="M3 12v6a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-6"/><path d="M3 12h5.5a2.5 2.5 0 0 0 5 0H21"/></svg>
+            Belum ada panel yang dibuat.
+          </div>
+
+          <div class="section-empty" id="riwayatNoMatch" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            Tidak ada panel yang cocok dengan pencarian/filter.
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal konfirmasi + loading -->
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal-box modal-wide">
+      <div id="confirmContent">
+        <h3>Konfirmasi Pembuatan Panel</h3>
+        <div class="result-box">
+          <div class="row"><span>Nama</span><span id="confirmName" class="mono"></span></div>
+          <div class="row"><span>RAM</span><span id="confirmRam" class="mono"></span></div>
+          <div class="row"><span>CPU</span><span id="confirmCpu" class="mono"></span></div>
+          <div class="row"><span>Disk</span><span id="confirmDisk" class="mono"></span></div>
+        </div>
+        <div class="modal-actions" style="margin-top:18px;">
+          <button type="button" class="btn btn-secondary" id="confirmCancelBtn">Batal</button>
+          <button type="button" class="btn" id="confirmSubmitBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>
+            Buat Panel
+          </button>
+        </div>
+      </div>
+      <div id="loadingContent" style="display:none; text-align:center; padding:14px 0 6px;">
+        <div class="spinner"></div>
+        <p id="loadingStatusText" style="margin-top:14px; color:var(--text-dim); font-size:13.5px;">Membuat panel...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal hasil sukses -->
+  <div class="modal-overlay" id="successModal">
+    <div class="modal-box modal-wide">
+      <h3 style="display:flex; align-items:center; gap:8px; color:#5eeab5;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px;"><circle cx="12" cy="12" r="9"/><path d="M8.3 12.4l2.6 2.6 5-5.2"/></svg>
+        Panel Berhasil Dibuat
+      </h3>
+      <div class="result-box">
+        <div class="row"><span>Nama Panel</span><span id="succName" class="mono"></span></div>
+        <div class="row"><span>Username</span><span id="succUser" class="mono"></span></div>
+        <div class="row">
+          <span>Password</span>
+          <span class="pass-reveal">
+            <span id="succPass" class="mono">••••••••</span>
+            <button type="button" id="toggleSuccPass" aria-label="Tampilkan password">
+              <svg id="succEyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.7"/></svg>
+            </button>
+          </span>
+        </div>
+        <div class="row"><span>RAM</span><span id="succRam" class="mono"></span></div>
+        <div class="row"><span>CPU</span><span id="succCpu" class="mono"></span></div>
+        <div class="row"><span>Disk</span><span id="succDisk" class="mono"></span></div>
+      </div>
+      <p style="color:var(--warning); font-size:11.5px; margin-top:10px;">Password hanya ditampilkan sekali. Simpan sekarang.</p>
+      <div class="modal-actions wrap" style="margin-top:16px;">
+        <button type="button" class="btn btn-secondary" id="succCopyBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+          Salin Data
+        </button>
+        <a class="btn btn-secondary" id="succOpenBtn" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M10 14L20 4"/><path d="M19 13v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6"/></svg>
+          Buka Panel
+        </a>
+        <button type="button" class="btn" id="succCloseBtn">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal detail panel (riwayat) -->
+  <div class="modal-overlay" id="detailModal">
+    <div class="modal-box modal-wide">
+      <h3>Detail Panel</h3>
+      <div class="result-box">
+        <div class="row"><span>Nama Panel</span><span id="detName" class="mono"></span></div>
+        <div class="row"><span>Status</span><span id="detStatus"></span></div>
+        <div class="row"><span>RAM</span><span id="detRam" class="mono"></span></div>
+        <div class="row"><span>CPU</span><span id="detCpu" class="mono"></span></div>
+        <div class="row"><span>Disk</span><span id="detDisk" class="mono"></span></div>
+        <div class="row"><span>Dibuat</span><span id="detDate" class="mono"></span></div>
+      </div>
+      <p class="ec-msg" id="detErrorMsg" style="display:none; margin-top:10px;"></p>
+      <div class="modal-actions wrap" style="margin-top:16px;">
+        <button type="button" class="btn btn-secondary" id="detCopyBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+          Salin Info
+        </button>
+        <a class="btn btn-secondary" id="detOpenBtn" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M10 14L20 4"/><path d="M19 13v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6"/></svg>
+          Buka Panel
+        </a>
+        <button type="button" class="btn" id="detCloseBtn">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>
