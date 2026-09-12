@@ -8,7 +8,7 @@ const rateLimit = require("express-rate-limit");
 const { v4: uuid } = require("uuid");
 const SupabaseSessionStore = require("./utils/session-store");
 
-const { readAll, writeAll } = require("./utils/db");
+const { readAll, writeAll, insertOne, updateOne } = require("./utils/db");
 const { encrypt, decrypt, randomPassword, usernameFromName } = require("./utils/crypto");
 const { requireAuth, requireRole } = require("./middleware/auth");
 const pterodactyl = require("./services/pterodactyl");
@@ -44,8 +44,9 @@ app.use(
 
 // ---------- Helper log aktivitas ----------
 async function logActivity({ userId, username, role, action, metadata = {}, req }) {
-  const logs = await readAll("logs");
-  logs.push({
+  // Insert satu baris langsung. Jangan read-all + replace-all pada Vercel karena
+  // dua request bersamaan dapat saling menimpa snapshot database.
+  await insertOne("logs", {
     id: uuid(),
     user_id: userId,
     username,
@@ -56,7 +57,6 @@ async function logActivity({ userId, username, role, action, metadata = {}, req 
     user_agent: req?.headers["user-agent"] || null,
     created_at: new Date().toISOString(),
   });
-  await writeAll("logs", logs);
 }
 
 // =====================================================================
@@ -243,134 +243,239 @@ app.post("/api/panels/create", requireAuth, requireRole("reseller", "admin_panel
   }
 
   if (creatingLock.has(user.id)) {
-    return res.status(429).json({ error: "Masih ada proses pembuatan panel yang berjalan." });
+    return res.status(429).json({ error: "Masih ada proses pembuatan panel yang berjalan. Tunggu sampai selesai." });
   }
   creatingLock.add(user.id);
 
-  const panels = await readAll("panels");
   const recordId = uuid();
-
-  // Username Pterodactyl mengikuti Nama Panel yang diketik reseller (bukan acak).
-  // Hanya password yang acak, diawali "kairo".
-  let generatedUsername = usernameFromName(name);
-  const existingUsernames = new Set(panels.map((p) => p.pterodactyl_username));
-  if (existingUsernames.has(generatedUsername)) {
-    const base = generatedUsername;
-    let suffix = 2;
-    while (existingUsernames.has(`${base}${suffix}`)) suffix++;
-    generatedUsername = `${base}${suffix}`;
-  }
+  const panelName = String(name).trim().slice(0, 80);
+  let generatedUsername = usernameFromName(panelName);
   const generatedPassword = randomPassword(14, "kairo");
-
-  const baseRecord = {
-    id: recordId,
-    created_by: user.id,
-    created_by_username: user.username,
-    created_by_role: user.role,
-    panel_name: name.trim(),
-    pterodactyl_username: generatedUsername,
-    encrypted_password: encrypt(generatedPassword),
-    ram,
-    panel_url: null,
-    pterodactyl_user_id: null,
-    pterodactyl_server_id: null,
-    status: "processing",
-    error_message: null,
-    created_at: new Date().toISOString(),
-  };
-  panels.push(baseRecord);
-  await writeAll("panels", panels);
+  const createdAt = new Date().toISOString();
 
   try {
-    const ptUser = await pterodactyl.createUser({
-      username: generatedUsername,
-      email: `${generatedUsername}@kairoo.store`,
-      password: generatedPassword,
-    });
-    const ptServer = await pterodactyl.createServer({
-      name: name.trim(),
-      userId: ptUser.id,
-      ram,
-    });
+    // Hanya cek username milik aplikasi. Query ini ringan dan tidak lagi
+    // mengambil seluruh tabel lalu menulis ulang seluruh tabel.
+    const db = require("./utils/db");
+    const existing = await db.getClient()
+      .from("panels")
+      .select("pterodactyl_username")
+      .eq("pterodactyl_username", generatedUsername)
+      .limit(1);
+    if (existing.error) throw existing.error;
 
-    const panelsAfter = await readAll("panels");
-    const rec = panelsAfter.find((p) => p.id === recordId);
-    rec.status = "success";
-    rec.pterodactyl_user_id = ptUser.id;
-    rec.pterodactyl_server_id = ptServer.id;
-    rec.panel_url = `${await pterodactyl.getDomain()}/server/${ptServer.identifier}`;
-    await writeAll("panels", panelsAfter);
+    if (existing.data?.length) {
+      const base = generatedUsername;
+      let suffix = 2;
+      do {
+        const candidate = `${base.slice(0, Math.max(1, 32 - String(suffix).length))}${suffix}`;
+        const check = await db.getClient().from("panels").select("id").eq("pterodactyl_username", candidate).limit(1);
+        if (check.error) throw check.error;
+        if (!check.data?.length) {
+          generatedUsername = candidate;
+          break;
+        }
+        suffix++;
+      } while (suffix < 10000);
+    }
+
+    const baseRecord = {
+      id: recordId,
+      created_by: user.id,
+      created_by_username: user.username,
+      created_by_role: user.role,
+      panel_name: panelName,
+      pterodactyl_username: generatedUsername,
+      encrypted_password: encrypt(generatedPassword),
+      ram,
+      panel_url: null,
+      pterodactyl_user_id: null,
+      pterodactyl_server_id: null,
+      status: "processing",
+      error_message: null,
+      created_at: createdAt,
+    };
+
+    // Simpan status processing sebelum menyentuh Pterodactyl. Ini membuat
+    // history tetap punya jejak walaupun serverless function mati di tengah jalan.
+    await insertOne("panels", baseRecord);
+
+    let ptUser = null;
+    let ptServer = null;
+    try {
+      ptUser = await pterodactyl.createUser({
+        username: generatedUsername,
+        email: `${generatedUsername}@kairoo.store`,
+        password: generatedPassword,
+      });
+
+      // Simpan ID user segera. Jika request create server timeout, kita masih
+      // punya identitas Pterodactyl untuk proses rekonsiliasi tanpa membuat user
+      // kedua.
+      await updateOne("panels", "id", recordId, {
+        pterodactyl_user_id: ptUser.id,
+        status: "processing",
+      });
+
+      // Jangan retry createServer otomatis: timeout bisa berarti Pterodactyl
+      // sebenarnya sudah menerima request. Retry buta dapat membuat server ganda.
+      ptServer = await pterodactyl.createServer({
+        name: panelName,
+        userId: ptUser.id,
+        ram,
+      });
+    } catch (pteroErr) {
+      // Jika user berhasil dibuat tetapi server gagal dengan response HTTP yang
+      // jelas, hapus user agar tidak meninggalkan akun yatim. Untuk timeout/network
+      // cleanup dilewati karena request create mungkin sebenarnya sudah diterima.
+      const isUncertain = ["ECONNABORTED", "ETIMEDOUT", "ECONNRESET", "EAI_AGAIN"].includes(pteroErr?.code);
+      if (ptUser?.id && !isUncertain) {
+        await pterodactyl.deleteUser(ptUser.id);
+      }
+      throw pteroErr;
+    }
+
+    const domain = String(await pterodactyl.getDomain()).replace(/\/+$/, "");
+    const panelUrl = `${domain}/server/${ptServer.identifier}`;
+    const updated = await updateOne("panels", "id", recordId, {
+      status: "success",
+      pterodactyl_user_id: ptUser.id,
+      pterodactyl_server_id: ptServer.id,
+      panel_url: panelUrl,
+      error_message: null,
+    });
 
     await logActivity({
       userId: user.id,
       username: user.username,
       role: user.role,
       action: "create_panel",
-      metadata: { panel_name: name.trim(), ram, status: "success" },
+      metadata: {
+        panel_name: panelName,
+        ram,
+        status: "success",
+        pterodactyl_user_id: ptUser.id,
+        pterodactyl_server_id: ptServer.id,
+      },
       req,
     });
 
-    res.json({
+    return res.status(201).json({
       ok: true,
       status: "success",
       panel: {
-        name: rec.panel_name,
+        id: updated.id,
+        name: updated.panel_name,
         username: generatedUsername,
-        password: generatedPassword, // hanya ditampilkan SEKALI saat berhasil dibuat
+        password: generatedPassword,
         ram,
-        panel_url: rec.panel_url,
+        panel_url: panelUrl,
       },
     });
   } catch (err) {
-    const panelsAfter = await readAll("panels");
-    const rec = panelsAfter.find((p) => p.id === recordId);
-    rec.status = "failed";
+    let message = "Gagal membuat panel Pterodactyl.";
 
-    let message = "Gagal membuat server Pterodactyl.";
     if (err.code === "PTERODACTYL_NOT_CONFIGURED") {
-      message = "Domain / PTLA Pterodactyl belum diatur. Atur dulu di menu Pengaturan.";
-    } else if (err.code === "ECONNREFUSED" || err.code === "ENOTFOUND" || err.code === "ECONNABORTED" || err.code === "ETIMEDOUT") {
-      message = "Server Pterodactyl tidak dapat dihubungi. Periksa domain panel dan koneksi server.";
-    } else if (err.code === "INVALID_ENVIRONMENT_JSON" || err.code === "PTERODACTYL_EGG_CONFIG_INVALID") {
-      message = err.message;
-    } else if (err.config && err.config.url && err.config.url.includes("/users")) {
-      message = "Gagal membuat akun Pterodactyl.";
-    } else if (err.response?.status === 401 || err.response?.status === 403) {
-      message = "PTLA ditolak Pterodactyl. Pastikan Application API Key benar dan memiliki permission yang diperlukan.";
-    } else if (err.response?.status === 422) {
-      const detail = Array.isArray(err.response?.data?.errors)
-        ? err.response.data.errors.map((e) => {
-            const field = Array.isArray(e.source?.field) ? e.source.field.join('.') : (e.source?.field || '');
-            const text = e.detail || e.code || 'Data tidak valid';
-            return field ? `${field}: ${text}` : text;
-          }).filter(Boolean).join(" | ")
-        : "Data server ditolak Pterodactyl.";
-      message = `Pterodactyl menolak pembuatan server: ${detail}`;
-    } else if (err.response) {
-      const apiMessage = err.response.data?.errors?.map?.((e) => e.detail || e.code).filter(Boolean).join(" | ");
-      message = `Pterodactyl API ${err.response.status}: ${apiMessage || err.response.statusText || 'Request ditolak.'}`;
+      message = "Domain / PTLA Pterodactyl belum diatur. Buka Pengaturan dan simpan Domain + PTLA terlebih dahulu.";
     } else if (err.code === "PTERODACTYL_INVALID_DOMAIN") {
       message = err.message;
+    } else if (["ECONNREFUSED", "ENOTFOUND", "EHOSTUNREACH", "EAI_AGAIN"].includes(err.code)) {
+      message = "Server Pterodactyl tidak dapat dihubungi dari Vercel. Pastikan domain publik, HTTPS valid, Cloudflare/proxy tidak memblokir request, dan port 443 dapat diakses.";
+    } else if (["ECONNABORTED", "ETIMEDOUT"].includes(err.code)) {
+      message = "Pterodactyl terlalu lama merespons. Cek koneksi panel dari Vercel. Jangan klik Buat Panel lagi sebelum memastikan server belum terbuat.";
+    } else if (err.code === "PTERODACTYL_EGG_CONFIG_INVALID") {
+      message = err.message;
+    } else if (err.response?.status === 401 || err.response?.status === 403) {
+      message = "PTLA ditolak Pterodactyl. Pastikan Application API Key benar dan memiliki permission yang diperlukan.";
+    } else if (err.response?.status === 409) {
+      message = `Pterodactyl menolak karena data sudah ada: ${err.pteroDetail || "username/email mungkin sudah digunakan."}`;
+    } else if (err.response?.status === 422) {
+      message = `Pterodactyl menolak pembuatan server: ${err.pteroDetail || "Data server tidak valid."}`;
+    } else if (err.response) {
+      message = `Pterodactyl API ${err.response.status}: ${err.pteroDetail || err.response.statusText || "Request ditolak."}`;
     } else if (err.code === "SUPABASE_NOT_CONFIGURED") {
       message = err.message;
     } else if (err.message) {
       message = err.message;
     }
-    rec.error_message = message;
-    await writeAll("panels", panelsAfter);
 
-    await logActivity({
-      userId: user.id,
-      username: user.username,
-      role: user.role,
-      action: "create_panel",
-      metadata: { panel_name: name.trim(), ram, status: "failed" },
-      req,
+    // Network timeout setelah createServer bersifat ambiguous: Pterodactyl bisa
+    // saja sudah membuat server tetapi response-nya tidak sampai ke Vercel.
+    // Tandai processing agar tidak menyesatkan user dan bisa direkonsiliasi.
+    const uncertain = ["ECONNABORTED", "ETIMEDOUT", "ECONNRESET", "EAI_AGAIN"].includes(err?.code) && !!ptUser;
+    try {
+      await updateOne("panels", "id", recordId, {
+        status: uncertain ? "processing" : "failed",
+        error_message: message,
+        ...(ptUser?.id ? { pterodactyl_user_id: ptUser.id } : {}),
+      });
+    } catch (dbErr) {
+      console.error("Gagal menyimpan status panel:", dbErr);
+    }
+
+    try {
+      await logActivity({
+        userId: user.id,
+        username: user.username,
+        role: user.role,
+        action: "create_panel",
+        metadata: { panel_name: panelName, ram, status: "failed", error: message },
+        req,
+      });
+    } catch (logErr) {
+      console.error("Gagal menyimpan log create panel:", logErr);
+    }
+
+    return res.status(err.response?.status === 401 || err.response?.status === 403 ? 502 : 502).json({
+      ok: false,
+      status: uncertain ? "processing" : "failed",
+      error: message,
+      panel_id: recordId,
+      code: err.code || null,
+      pterodactyl_status: err.response?.status || null,
     });
-
-    res.status(502).json({ ok: false, status: "failed", error: message });
   } finally {
     creatingLock.delete(user.id);
+  }
+});
+
+app.post("/api/panels/:id/reconcile", requireAuth, requireRole("reseller", "admin_panel"), async (req, res) => {
+  try {
+    const db = require("./utils/db");
+    const { data: panel, error } = await db.getClient()
+      .from("panels")
+      .select("*")
+      .eq("id", req.params.id)
+      .eq("created_by", req.session.user.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!panel) return res.status(404).json({ error: "Panel tidak ditemukan." });
+    if (panel.status === "success") {
+      return res.json({ ok: true, status: "success", panel_url: panel.panel_url });
+    }
+    if (!panel.pterodactyl_user_id) {
+      return res.json({ ok: true, status: panel.status, found: false });
+    }
+
+    const servers = await pterodactyl.findServer({
+      userId: panel.pterodactyl_user_id,
+      name: panel.panel_name,
+    });
+    const server = servers.find((item) => String(item.user) === String(panel.pterodactyl_user_id)) || servers[0];
+    if (!server) {
+      return res.json({ ok: true, status: "processing", found: false });
+    }
+
+    const domain = String(await pterodactyl.getDomain()).replace(/\/+$/, "");
+    const updated = await updateOne("panels", "id", panel.id, {
+      status: "success",
+      pterodactyl_server_id: server.id,
+      panel_url: `${domain}/server/${server.identifier}`,
+      error_message: null,
+    });
+    return res.json({ ok: true, status: "success", found: true, panel_url: updated.panel_url });
+  } catch (err) {
+    return res.status(502).json({ ok: false, error: err.pteroDetail || err.message || "Rekonsiliasi gagal." });
   }
 });
 
