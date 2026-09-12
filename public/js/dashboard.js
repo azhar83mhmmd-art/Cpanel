@@ -276,7 +276,14 @@ async function submitCreatePanel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, ram }),
     });
-    const data = await res.json();
+    const contentType = res.headers.get("content-type") || "";
+    let data;
+    if (contentType.includes("application/json")) {
+      data = await res.json();
+    } else {
+      const text = await res.text();
+      data = { error: text || `Request gagal (HTTP ${res.status}).` };
+    }
 
     if (!res.ok) {
       closeConfirmModal();
@@ -299,7 +306,7 @@ async function submitCreatePanel() {
     renderRiwayat();
   } catch (err) {
     closeConfirmModal();
-    const msg = "Tidak dapat terhubung ke server.";
+    const msg = err?.message || "Tidak dapat terhubung ke server.";
     showCreateError(msg);
     showToast(msg, "error");
   } finally {
