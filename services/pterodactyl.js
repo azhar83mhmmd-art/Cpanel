@@ -12,8 +12,14 @@ async function client() {
     err.code = "PTERODACTYL_NOT_CONFIGURED";
     throw err;
   }
+  let domain = String(cfg.domain || '').trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(domain)) {
+    const err = new Error('Domain Pterodactyl harus diawali http:// atau https://.');
+    err.code = 'PTERODACTYL_INVALID_DOMAIN';
+    throw err;
+  }
   return axios.create({
-    baseURL: `${cfg.domain}/api/application`,
+    baseURL: `${domain}/api/application`, 
     headers: {
       Authorization: `Bearer ${cfg.ptla}`,
       "Content-Type": "application/json",
@@ -71,17 +77,38 @@ async function resolveResources() {
     throw err;
   }
 
-  if (!nestId || !nests.some((n) => Number(n.attributes.id) === nestId)) {
-    if (!nests.length) throw new Error("Pterodactyl tidak memiliki Nest.");
-    nestId = Number(nests[0].attributes.id);
+  if (!nests.length) throw new Error("Pterodactyl tidak memiliki Nest.");
+
+  // Pilih Nest pertama yang memiliki Egg yang benar-benar dapat dipakai.
+  // Sebelumnya kode selalu mengambil Egg pertama dari Nest pertama, yang sering
+  // membuat create server gagal pada panel yang memiliki beberapa Nest/Egg.
+  let selected = null;
+  for (const nest of nests) {
+    const id = Number(nest.attributes.id);
+    try {
+      const eggRes = await api.get(`/nests/${id}/eggs`, {
+        params: { include: "variables", per_page: 100 },
+      });
+      const eggs = eggRes.data.data || [];
+      const egg = eggs.find((item) => {
+        const a = item.attributes || {};
+        return !!a.docker_image && !!a.startup;
+      });
+      if (egg) {
+        selected = { nestId: id, nest, egg };
+        break;
+      }
+    } catch (_) {
+      // Lanjut ke Nest berikutnya. Error final akan diberikan jika tidak ada Egg valid.
+    }
   }
 
-  const eggRes = await api.get(`/nests/${nestId}/eggs`, {
-    params: { include: "variables", per_page: 100 },
-  });
-  const eggs = eggRes.data.data || [];
-  let egg = eggs[0];
-  if (!egg) throw new Error(`Nest ${nestId} tidak memiliki Egg.`);
+  if (!selected) {
+    throw new Error("Tidak ditemukan Nest/Egg Pterodactyl yang memiliki Docker Image dan Startup yang valid.");
+  }
+
+  nestId = selected.nestId;
+  const egg = selected.egg;
 
   const locationRes = await api.get("/locations", { params: { per_page: 100 } });
   const locations = locationRes.data.data || [];
@@ -97,7 +124,11 @@ async function resolveResources() {
   const environment = {};
   for (const item of variables) {
     const v = item.attributes || {};
-    if (v.env_variable) environment[v.env_variable] = v.default_value ?? "";
+    if (v.env_variable) {
+      // Pterodactyl mengharapkan seluruh variabel Egg dikirim. Gunakan default
+      // Egg bila tersedia; string kosong tetap dikirim agar validasi API konsisten.
+      environment[v.env_variable] = v.default_value ?? "";
+    }
   }
   return {
     nestId,
