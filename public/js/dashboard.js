@@ -259,6 +259,28 @@ function closeConfirmModal() {
   PENDING_CREATE = null;
 }
 
+async function reconcilePanel(panelId, attempts = 8, delayMs = 2500) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(`/api/panels/${encodeURIComponent(panelId)}/reconcile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.status === "success") {
+        await loadPanels();
+        renderStats();
+        renderTerbaru();
+        renderRiwayat();
+        showToast("Panel berhasil dibuat dan sudah tersinkron.", "success");
+        return true;
+      }
+    } catch (_) {}
+    if (i < attempts - 1) await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return false;
+}
+
 async function submitCreatePanel() {
   if (!PENDING_CREATE) return;
   const { name, ram } = PENDING_CREATE;
@@ -271,11 +293,21 @@ async function submitCreatePanel() {
   createBtn.disabled = true;
 
   try {
-    const res = await fetch("/api/panels/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, ram }),
-    });
+    // Sedikit di bawah batas Vercel agar browser dapat menangani timeout dengan
+    // rapi dan mencoba rekonsiliasi, bukan menampilkan error koneksi generik.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 55000);
+    let res;
+    try {
+      res = await fetch("/api/panels/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, ram }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
     const contentType = res.headers.get("content-type") || "";
     let data;
     if (contentType.includes("application/json")) {
@@ -287,6 +319,10 @@ async function submitCreatePanel() {
 
     if (!res.ok) {
       closeConfirmModal();
+      if (data.status === "processing" && data.panel_id) {
+        const recovered = await reconcilePanel(data.panel_id, 10, 2500);
+        if (recovered) return;
+      }
       const msg = data.error || "Gagal membuat panel. Silakan coba lagi.";
       showCreateError(msg);
       showToast(msg, "error");
@@ -306,7 +342,31 @@ async function submitCreatePanel() {
     renderRiwayat();
   } catch (err) {
     closeConfirmModal();
-    const msg = err?.message || "Tidak dapat terhubung ke server.";
+    // Jika browser kehilangan koneksi ke Vercel setelah request dikirim, jangan
+    // langsung menganggap pembuatan gagal. Coba rekonsiliasi record terakhir.
+    let msg = "Tidak dapat terhubung ke server.";
+    try {
+      await loadPanels();
+      const pending = PANELS.find((p) =>
+        p.panel_name === name &&
+        p.status === "processing"
+      );
+      if (pending?.id) {
+        const recovered = await reconcilePanel(pending.id, 8, 2500);
+        if (recovered) return;
+        msg = "Request pembuatan sudah diterima. Panel masih diproses. Buka Riwayat Panel beberapa detik lagi untuk melihat statusnya.";
+      } else if (err?.name === "AbortError") {
+        msg = "Request terlalu lama. Jangan klik Buat Panel lagi; cek Riwayat Panel karena panel mungkin sudah dibuat.";
+      } else if (err?.message) {
+        msg = err.message;
+      }
+    } catch (_) {
+      if (err?.name === "AbortError") {
+        msg = "Request terlalu lama. Jangan klik Buat Panel lagi; cek Riwayat Panel karena panel mungkin sudah dibuat.";
+      } else if (err?.message) {
+        msg = err.message;
+      }
+    }
     showCreateError(msg);
     showToast(msg, "error");
   } finally {
