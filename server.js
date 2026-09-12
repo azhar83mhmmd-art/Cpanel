@@ -284,7 +284,7 @@ app.post("/api/panels/create", requireAuth, requireRole("reseller", "admin_panel
   try {
     const ptUser = await pterodactyl.createUser({
       username: generatedUsername,
-      email: `${generatedUsername}@kairoo.local`,
+      email: `${generatedUsername}@kairoo.store`,
       password: generatedPassword,
     });
     const ptServer = await pterodactyl.createServer({
@@ -339,9 +339,22 @@ app.post("/api/panels/create", requireAuth, requireRole("reseller", "admin_panel
       message = "PTLA ditolak Pterodactyl. Pastikan Application API Key benar dan memiliki permission yang diperlukan.";
     } else if (err.response?.status === 422) {
       const detail = Array.isArray(err.response?.data?.errors)
-        ? err.response.data.errors.map((e) => e.detail || e.code).filter(Boolean).join(" | ")
+        ? err.response.data.errors.map((e) => {
+            const field = Array.isArray(e.source?.field) ? e.source.field.join('.') : (e.source?.field || '');
+            const text = e.detail || e.code || 'Data tidak valid';
+            return field ? `${field}: ${text}` : text;
+          }).filter(Boolean).join(" | ")
         : "Data server ditolak Pterodactyl.";
       message = `Pterodactyl menolak pembuatan server: ${detail}`;
+    } else if (err.response) {
+      const apiMessage = err.response.data?.errors?.map?.((e) => e.detail || e.code).filter(Boolean).join(" | ");
+      message = `Pterodactyl API ${err.response.status}: ${apiMessage || err.response.statusText || 'Request ditolak.'}`;
+    } else if (err.code === "PTERODACTYL_INVALID_DOMAIN") {
+      message = err.message;
+    } else if (err.code === "SUPABASE_NOT_CONFIGURED") {
+      message = err.message;
+    } else if (err.message) {
+      message = err.message;
     }
     rec.error_message = message;
     await writeAll("panels", panelsAfter);
@@ -358,6 +371,38 @@ app.post("/api/panels/create", requireAuth, requireRole("reseller", "admin_panel
     res.status(502).json({ ok: false, status: "failed", error: message });
   } finally {
     creatingLock.delete(user.id);
+  }
+});
+
+app.get("/api/admin/pterodactyl/diagnostic", requireAuth, requireRole("admin_web"), async (req, res) => {
+  try {
+    const cfg = await settingsStore.getConfig();
+    if (!cfg.domain || !cfg.ptla) {
+      return res.status(400).json({ ok: false, error: "Domain / PTLA belum diatur." });
+    }
+    await pterodactyl.testConnection();
+    const resources = await pterodactyl.resolveResources();
+    return res.json({
+      ok: true,
+      domain: cfg.domain,
+      nest: { id: resources.nestId, name: resources.nestName },
+      egg: { id: resources.eggId, name: resources.eggName },
+      location: { id: resources.locationId, name: resources.locationName },
+      docker_image: resources.dockerImage,
+      startup: resources.startup,
+      environment_keys: Object.keys(resources.environment || {}),
+    });
+  } catch (err) {
+    const detail = err.response?.data?.errors?.map?.((e) => {
+      const field = Array.isArray(e.source?.field) ? e.source.field.join('.') : (e.source?.field || '');
+      const text = e.detail || e.code || 'Request ditolak';
+      return field ? `${field}: ${text}` : text;
+    }).filter(Boolean).join(' | ');
+    res.status(err.response?.status || 500).json({
+      ok: false,
+      error: detail || err.message || 'Diagnostic gagal.',
+      status: err.response?.status || null,
+    });
   }
 });
 
